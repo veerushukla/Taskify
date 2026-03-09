@@ -364,10 +364,10 @@ OLD_PLAN_TITLES = [
 
 def _cleanup_old_plan():
     cursor = tracker.conn.execute(
-        "DELETE FROM tasks WHERE task_date BETWEEN ? AND ? AND title IN ({})".format(
+        "DELETE FROM tasks WHERE title IN ({})".format(
             ",".join("?" for _ in OLD_PLAN_TITLES)
         ),
-        [str(OLD_PLAN_START), str(OLD_PLAN_END)] + OLD_PLAN_TITLES,
+        OLD_PLAN_TITLES,
     )
     tracker.conn.commit()
     if cursor.rowcount:
@@ -473,10 +473,15 @@ PAGE = """
     button:hover { opacity: 0.9; }
     button.secondary { background: #475569; }
     button.danger { background: var(--danger); }
-    table { width: 100%; border-collapse: collapse; }
+    table { width: 100%; border-collapse: collapse; min-width: 600px; table-layout: fixed; }
+    th:nth-child(1) { width: 8%; }
+    th:nth-child(2) { width: 25%; }
+    th:nth-child(3) { width: 35%; }
+    th:nth-child(4) { width: 12%; }
+    th:nth-child(5) { width: 20%; }
     th, td { border-bottom: 1px solid var(--line); text-align: left; padding: 10px; vertical-align: top; font-size: 14px; }
     th { background: rgba(255,255,255,0.02); font-weight: 600; color: var(--accent); }
-    td { word-break: break-word; }
+    td { word-break: break-word; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .status-done { color: var(--done); font-weight: 600; }
     .status-pending { color: var(--pending); font-weight: 600; }
     .actions { display: flex; flex-wrap: wrap; gap: 8px; }
@@ -571,9 +576,9 @@ PAGE = """
       input, button, textarea { padding: 8px; font-size: 15px; }
       button { font-size: 13px; padding: 8px; }
       table { font-size: 11px; }
-      th, td { padding: 4px; }
-      .actions { gap: 4px; }
-      .actions button { font-size: 10px; padding: 5px 6px; }
+      th, td { padding: 2px; }
+      .actions { gap: 2px; }
+      .actions button { font-size: 10px; padding: 4px 6px; }
       .donut { width: 100px; height: 100px; }
       .donut::after { width: 70px; height: 70px; font-size: 14px; }
       .pill { padding: 6px; }
@@ -606,7 +611,7 @@ PAGE = """
       <form method="post" action="{{ url_for('add_task') }}">
         <div class="row">
           <input type="text" name="title" placeholder="Task title" required>
-          <input type="date" name="task_date" value="{{ selected_date }}" min="2026-03-09" max="2026-06-06" required>
+          <input type="date" name="task_date" value="{{ selected_date }}" min="2026-03-09" max="{{ today_date }}" required>
         </div>
         <textarea name="details" placeholder="Task details (optional)"></textarea>
         <button type="submit">Add Task</button>
@@ -627,12 +632,6 @@ PAGE = """
 
     <div class="card">
       <h2>Filter & Report</h2>
-      <form method="get" action="{{ url_for('home') }}">
-        <div class="row">
-          <input type="date" name="date" value="{{ selected_date }}" min="2026-03-09" max="2026-06-06">
-          <button type="submit">Load Date</button>
-        </div>
-      </form>
       <div class="report" style="margin-top:12px;">
         <div class="pill"><strong>Total:</strong> {{ report.total }}</div>
         <div class="pill"><strong>Completed:</strong> {{ report.completed }}</div>
@@ -685,6 +684,7 @@ PAGE = """
     <div class="card">
       <h2>Tasks for {{ selected_date }}</h2>
       {% if tasks %}
+      <div style="overflow-x: auto;">
       <table>
         <thead>
           <tr>
@@ -736,6 +736,7 @@ PAGE = """
           {% endfor %}
         </tbody>
       </table>
+      </div>
       {% else %}
         <p class="muted">No tasks for this date yet.</p>
       {% endif %}
@@ -767,11 +768,11 @@ EDIT_PAGE = """
     <h2>Edit Task #{{ task.id }}</h2>
     <form method="post" action="{{ url_for('edit_task_action', task_id=task.id) }}">
       <input type="text" name="title" value="{{ task.title }}" required>
-      <input type="date" name="task_date" value="{{ task.task_date }}" min="2026-03-09" max="2026-06-06" required>
+      <input type="date" name="task_date" value="{{ task.task_date }}" min="2026-03-09" max="{{ today_date }}" required>
       <textarea name="details">{{ task.details }}</textarea>
       <button type="submit">Save Changes</button>
     </form>
-    <p><a href="{{ url_for('home', date=task.task_date) }}">Back to tasks</a></p>
+    <p><a href="{{ url_for('home') }}">Back to tasks</a></p>
   </div>
 </body>
 </html>
@@ -781,7 +782,7 @@ EDIT_PAGE = """
 @app.get("/")
 def home():
     tracker.auto_generate_due_reports(after_hours=16)
-    selected_date = normalize_date(request.args.get("date", ""))
+    selected_date = str(date.today())
     tasks = tracker.list_tasks(selected_date)
     report = tracker.daily_report(selected_date)
     generated_report = tracker.get_generated_report(selected_date)
@@ -821,7 +822,7 @@ def generate_report():
         msg = "No tasks for this date, so report was not generated."
     else:
         msg = "Whole-day report generated and saved."
-    return redirect(url_for("home", date=task_date, msg=msg))
+    return redirect(url_for("home", msg=msg))
 
 
 @app.post("/tasks/add")
@@ -834,7 +835,7 @@ def add_task():
         msg = "Task added."
     else:
         msg = "Title is required."
-    return redirect(url_for("home", date=task_date, msg=msg))
+    return redirect(url_for("home", msg=msg))
 
 
 @app.post("/tasks/weekday-plan")
@@ -842,7 +843,7 @@ def load_weekday_plan():
     task_date = normalize_date(request.form.get("task_date", ""))
     created = add_weekday_plan_for_date(tracker, task_date)
     msg = f"Weekday plan loaded. Added {created} tasks (duplicates skipped)."
-    return redirect(url_for("home", date=task_date, msg=msg))
+    return redirect(url_for("home", msg=msg))
 
 
 @app.post("/tasks/weekend-plan")
@@ -850,44 +851,44 @@ def load_weekend_plan():
     task_date = normalize_date(request.form.get("task_date", ""))
     created = add_weekend_plan_for_date(tracker, task_date)
     msg = f"Weekend plan loaded. Added {created} tasks (duplicates skipped)."
-    return redirect(url_for("home", date=task_date, msg=msg))
+    return redirect(url_for("home", msg=msg))
 
 
 @app.post("/tasks/clear-old")
 def clear_old_plan():
     """Remove any leftover tasks from the former study plan range."""
-    # delete by date range and by known titles
+    # delete by known titles
     cursor = tracker.conn.execute(
-        "DELETE FROM tasks WHERE task_date BETWEEN ? AND ? AND title IN ({})".format(
+        "DELETE FROM tasks WHERE title IN ({})".format(
             ",".join("?" for _ in OLD_PLAN_TITLES)
         ),
-        [str(OLD_PLAN_START), str(OLD_PLAN_END)] + OLD_PLAN_TITLES,
+        OLD_PLAN_TITLES,
     )
     tracker.conn.commit()
     count = cursor.rowcount
     msg = f"Removed {count} old-plan tasks." if count else "No old-plan tasks found."
-    return redirect(url_for("home", date=str(OLD_PLAN_START), msg=msg))
+    return redirect(url_for("home", msg=msg))
 
 
 @app.post("/tasks/<int:task_id>/done")
 def mark_done(task_id: int):
     task_date = normalize_date(request.form.get("date", ""))
     tracker.mark_status(task_id, done=True)
-    return redirect(url_for("home", date=task_date, msg="Task marked done."))
+    return redirect(url_for("home", msg="Task marked done."))
 
 
 @app.post("/tasks/<int:task_id>/pending")
 def mark_pending(task_id: int):
     task_date = normalize_date(request.form.get("date", ""))
     tracker.mark_status(task_id, done=False)
-    return redirect(url_for("home", date=task_date, msg="Task marked pending."))
+    return redirect(url_for("home", msg="Task marked pending."))
 
 
 @app.post("/tasks/<int:task_id>/delete")
 def delete_task(task_id: int):
     task_date = normalize_date(request.form.get("date", ""))
     tracker.delete_task(task_id)
-    return redirect(url_for("home", date=task_date, msg="Task deleted."))
+    return redirect(url_for("home", msg="Task deleted."))
 
 
 @app.get("/tasks/<int:task_id>/edit")
@@ -895,7 +896,7 @@ def edit_task_page(task_id: int):
     task = tracker.get_task(task_id)
     if not task:
         return redirect(url_for("home", msg="Task not found."))
-    return render_template_string(EDIT_PAGE, task=task)
+    return render_template_string(EDIT_PAGE, task=task, today_date=str(date.today()))
 
 
 @app.post("/tasks/<int:task_id>/edit")
@@ -905,7 +906,7 @@ def edit_task_action(task_id: int):
     task_date = normalize_date(request.form.get("task_date", ""))
     ok = tracker.edit_task(task_id, title, details, task_date)
     msg = "Task updated." if ok else "Could not update task."
-    return redirect(url_for("home", date=task_date, msg=msg))
+    return redirect(url_for("home", msg=msg))
 
 
 if __name__ == "__main__":
