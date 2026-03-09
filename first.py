@@ -345,7 +345,7 @@ class TaskTracker:
 
 tracker = TaskTracker()
 
-# delete any leftover tasks from the now‑removed study plan range; this runs once
+# delete any leftover tasks from the now-removed study plan range; this runs once
 # when the module is imported so the UI no longer shows old items.
 
 # old plan coverage used in the removed feature
@@ -445,41 +445,54 @@ PAGE = """
   <title>Daily Task Tracker</title>
   <style>
     :root {
-      /* lighter, calming gradient background */
-      --bg: linear-gradient(135deg, #e0f7fa, #fffde7);
-      --card: rgba(255,255,255,0.85);
-      --text: #111827;
-      --muted: #6b7280;
-      --accent: #0f766e;
-      --danger: #b91c1c;
-      --line: #e5e7eb;
-      --done: #166534;
-      --pending: #92400e;
+      /* dark mode theme */
+      --bg: linear-gradient(135deg, #0d1117, #161b22);
+      --card: rgba(30,30,30,0.9);
+      --text: #ffffff;
+      --muted: #8b949e;
+      --accent: #58a6ff;
+      --danger: #f85149;
+      --line: #30363d;
+      --done: #56d364;
+      --pending: #d29922;
     }
-    body { margin: 0; font-family: Segoe UI, Arial, sans-serif; background: var(--bg); background-attachment: fixed; color: var(--text); }
-    .wrap { max-width: 1000px; margin: 30px auto; padding: 0 14px; }
-    .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 16px; margin-bottom: 14px; box-shadow: 0 2px 6px rgba(0,0,0,0.08); }
-    h1, h2 { margin-top: 0; }
-    form { display: grid; gap: 10px; }
-    .row { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
-    input, textarea, button { font: inherit; padding: 9px 10px; border-radius: 8px; border: 1px solid #cbd5e1; }
-    button { background: var(--accent); color: #fff; border: none; cursor: pointer; }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: "Segoe UI", Arial, sans-serif; background: var(--bg); background-attachment: fixed; color: var(--text); line-height: 1.5; }
+    .wrap { width: min(1000px, 100% - 32px); margin: 24px auto; }
+    .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 16px; margin-bottom: 14px; box-shadow: 0 2px 6px rgba(0,0,0,0.15); }
+    h1, h2 { margin: 0 0 16px 0; color: var(--text); }
+    h1 { font-size: 28px; }
+    h2 { font-size: 20px; }
+    form { display: grid; gap: 12px; }
+    .row { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
+    input, textarea, button { font: inherit; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--line); }
+    input, textarea { width: 100%; background: rgba(255,255,255,0.05); color: var(--text); }
+    input::placeholder, textarea::placeholder { color: var(--muted); }
+    textarea { min-height: 88px; resize: vertical; }
+    button { background: var(--accent); color: #fff; border: none; cursor: pointer; padding: 10px 16px; transition: opacity 0.2s; }
+    button:hover { opacity: 0.9; }
     button.secondary { background: #475569; }
     button.danger { background: var(--danger); }
     table { width: 100%; border-collapse: collapse; }
-    th, td { border-bottom: 1px solid var(--line); text-align: left; padding: 8px; vertical-align: top; }
+    th, td { border-bottom: 1px solid var(--line); text-align: left; padding: 10px; vertical-align: top; font-size: 14px; }
+    th { background: rgba(255,255,255,0.02); font-weight: 600; color: var(--accent); }
+    td { word-break: break-word; }
     .status-done { color: var(--done); font-weight: 600; }
     .status-pending { color: var(--pending); font-weight: 600; }
-    .actions { display: flex; flex-wrap: wrap; gap: 6px; }
-    .inline { display: inline; }
+    .actions { display: flex; flex-wrap: wrap; gap: 8px; }
+    .actions button { padding: 7px 12px; font-size: 13px; }
+    .actions form { display: inline; margin: 0; }
+    .inline { display: inline; margin: 0; }
     .muted { color: var(--muted); }
     .report { display: grid; gap: 8px; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); }
-    .pill { background: #f8fafc; border: 1px solid var(--line); border-radius: 8px; padding: 10px; }
-    .flash { background: #ecfeff; border: 1px solid #99f6e4; padding: 10px; border-radius: 8px; margin-bottom: 10px; }
+    .pill { background: rgba(255,255,255,0.05); border: 1px solid var(--line); border-radius: 8px; padding: 12px; color: var(--text); }
+    .pill strong { color: var(--accent); }
+    .flash { background: #1e293b; border: 1px solid #334155; padding: 10px; border-radius: 8px; margin-bottom: 10px; color: #e2e8f0; }
     .small { font-size: 13px; }
-    .reminder { background: linear-gradient(135deg, #0f766e, #115e59); color: #fff; }
-    .reminder h2, .reminder p { margin: 0; }
-    .countline { margin-top: 10px; background: rgba(255, 255, 255, 0.22); border-radius: 999px; overflow: hidden; height: 12px; }
+    .reminder { background: linear-gradient(135deg, #0f766e, #115e59); color: #fff; padding: 16px; }
+    .reminder h2 { margin: 0 0 8px 0; font-size: 1.2rem; }
+    .reminder p { margin: 6px 0; }
+    .countline { margin: 12px 0 0 0; background: rgba(255, 255, 255, 0.2); border-radius: 999px; overflow: hidden; height: 14px; }
     .countline > div { height: 12px; background: #fef08a; }
     .exam-meta { margin-top: 6px; color: #d1fae5; font-size: 14px; }
     .viz-wrap { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
@@ -487,7 +500,7 @@ PAGE = """
       width: 150px;
       height: 150px;
       border-radius: 50%;
-      background: conic-gradient(#0f766e calc(var(--pct) * 1%), #e2e8f0 0);
+      background: conic-gradient(var(--accent) calc(var(--pct) * 1%), var(--muted) 0);
       display: grid;
       place-items: center;
       margin: 0 auto;
@@ -496,28 +509,76 @@ PAGE = """
       content: attr(data-label);
       width: 108px;
       height: 108px;
-      background: #fff;
+      background: var(--card);
       border-radius: 50%;
       display: grid;
       place-items: center;
       font-weight: 700;
-      color: #0f172a;
+      color: var(--text);
     }
     .bar-group { display: grid; gap: 10px; }
-    .bar { background: #e2e8f0; border-radius: 999px; overflow: hidden; height: 16px; }
+    .bar { background: var(--muted); border-radius: 999px; overflow: hidden; height: 16px; }
     .bar > div { height: 16px; }
-    .bar-done { background: #16a34a; }
-    .bar-pending { background: #d97706; }
+    .bar-done { background: var(--done); }
+    .bar-pending { background: var(--pending); }
     .flow { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
-    .step {
-      border: 1px solid var(--line);
-      background: #f8fafc;
-      border-radius: 8px;
-      padding: 8px 10px;
-      font-size: 14px;
-      font-weight: 600;
+    .step { border: 1px solid var(--line); background: rgba(255,255,255,0.05); border-radius: 8px; padding: 10px 12px; font-size: 13px; font-weight: 600; color: var(--text); white-space: nowrap; }
+    .arrow { color: var(--accent); font-weight: 700; font-size: 16px; }
+    .quote-card { text-align: center; font-style: italic; background: linear-gradient(135deg, #1e1e1e, #2d2d2d); color: #ffffff; padding: 16px; border-radius: 10px; }
+    .quote-card p { margin: 0; font-size: 15px; line-height: 1.5; }
+    @media (max-width: 760px) {
+      .wrap { width: min(1000px, 100% - 20px); margin: 16px auto; }
+      .card { padding: 14px; margin-bottom: 12px; }
+      h1 { font-size: 1.6rem; margin-bottom: 16px; }
+      h2 { font-size: 1.2rem; margin-bottom: 12px; }
+      .row { grid-template-columns: 1fr; gap: 8px; }
+      .report { grid-template-columns: repeat(2, 1fr); }
+      .viz-wrap { grid-template-columns: 1fr; }
+      .donut { width: 140px; height: 140px; }
+      .donut::after { width: 100px; height: 100px; font-size: 18px; }
+      th, td { padding: 8px; font-size: 13px; }
+      th { font-size: 12px; }
+      button { padding: 9px 12px; font-size: 14px; }
+      .actions { min-width: 100%; }
+      .actions button { flex: 1; font-size: 12px; padding: 8px 10px; }
+      .actions form { flex: 1; min-width: 70px; }
+      table { font-size: 13px; }
+      .pill { padding: 10px; }
+      .small { font-size: 12px; line-height: 1.4; }
+      form { gap: 8px; }
     }
-    .arrow { color: #64748b; font-weight: 700; }
+    @media (max-width: 600px) {
+      .wrap { margin: 12px auto; }
+      .card { padding: 12px; }
+      h1 { font-size: 1.4rem; }
+      h2 { font-size: 1.1rem; }
+      input, button, textarea { padding: 9px 10px; font-size: 16px; }
+      button { padding: 9px 10px; }
+      .report { grid-template-columns: 1fr; }
+      th, td { padding: 6px; font-size: 12px; }
+      .actions button { font-size: 11px; padding: 6px 8px; }
+      .donut { width: 120px; height: 120px; }
+      .donut::after { width: 85px; height: 85px; font-size: 16px; }
+      .pill { padding: 8px; }
+      .viz-wrap { gap: 10px; }
+      .bar-group { gap: 8px; }
+    }
+    @media (max-width: 400px) {
+      .wrap { margin: 8px auto; width: 100%; }
+      .card { padding: 10px; margin-bottom: 10px; }
+      h1 { font-size: 1.3rem; margin-bottom: 10px; }
+      h2 { font-size: 1rem; margin-bottom: 8px; }
+      input, button, textarea { padding: 8px; font-size: 15px; }
+      button { font-size: 13px; padding: 8px; }
+      table { font-size: 11px; }
+      th, td { padding: 4px; }
+      .actions { gap: 4px; }
+      .actions button { font-size: 10px; padding: 5px 6px; }
+      .donut { width: 100px; height: 100px; }
+      .donut::after { width: 70px; height: 70px; font-size: 14px; }
+      .pill { padding: 6px; }
+      .flash { padding: 8px; font-size: 13px; }
+    }
   </style>
 </head>
 <body>
@@ -536,7 +597,7 @@ PAGE = """
       <p class="exam-meta">Today: {{ today_date }} | Days left: {{ exam_days_left }}</p>
     </div>
 
-    <div class="card" style="text-align: center; font-style: italic; background: linear-gradient(135deg, #fff, #f0f8ff);">
+    <div class="card" style="text-align: center; font-style: italic; background: linear-gradient(135deg, #1e1e1e, #2d2d2d); color: #ffffff;">
       <p>"I don't have to show anything to anyone. There is nothing to prove." – Cristiano Ronaldo</p>
     </div>
 
@@ -693,12 +754,12 @@ EDIT_PAGE = """
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Edit Task</title>
   <style>
-    body { font-family: Segoe UI, Arial, sans-serif; max-width: 760px; margin: 30px auto; padding: 0 14px; background: #f8fafc; }
-    .card { background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 16px; }
+    body { font-family: Segoe UI, Arial, sans-serif; max-width: 760px; margin: 30px auto; padding: 0 14px; background: linear-gradient(135deg, #0d1117, #161b22); color: #ffffff; }
+    .card { background: rgba(30,30,30,0.9); border: 1px solid #30363d; border-radius: 10px; padding: 16px; box-shadow: 0 2px 6px rgba(0,0,0,0.08); }
     form { display: grid; gap: 10px; }
-    input, textarea, button { font: inherit; padding: 9px 10px; border-radius: 8px; border: 1px solid #cbd5e1; }
-    button { background: #0f766e; color: #fff; border: none; cursor: pointer; }
-    a { color: #0f766e; text-decoration: none; }
+    input, textarea, button { font: inherit; padding: 9px 10px; border-radius: 8px; border: 1px solid #30363d; }
+    button { background: #58a6ff; color: #fff; border: none; cursor: pointer; }
+    a { color: #58a6ff; text-decoration: none; }
   </style>
 </head>
 <body>
