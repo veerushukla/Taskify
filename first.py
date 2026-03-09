@@ -92,6 +92,18 @@ class TaskTracker:
         self.conn.commit()
         return int(cursor.lastrowid)
 
+    def task_exists(self, task_date: str, title: str) -> bool:
+        row = self.conn.execute(
+            """
+            SELECT 1
+            FROM tasks
+            WHERE task_date = ? AND title = ?
+            LIMIT 1
+            """,
+            (task_date, title.strip()),
+        ).fetchone()
+        return row is not None
+
     def list_tasks(self, task_date: Optional[str] = None) -> list[Task]:
         if task_date:
             rows = self.conn.execute(
@@ -333,6 +345,86 @@ class TaskTracker:
 
 tracker = TaskTracker()
 
+# delete any leftover tasks from the now‑removed study plan range; this runs once
+# when the module is imported so the UI no longer shows old items.
+
+# old plan coverage used in the removed feature
+OLD_PLAN_START = date(2026, 3, 10)
+OLD_PLAN_END = date(2026, 3, 29)
+OLD_PLAN_TITLES = [
+    "Maths Practice + Revision (4h)",
+    "Logical Reasoning (1h)",
+    "Daily Maths Test",
+    "Revise Weekly Maths Topic",
+    "Quants (2h)",
+    "Computer (1h)",
+    "Mock Test Only",
+    "Record Mock Test Score",
+]
+
+def _cleanup_old_plan():
+    cursor = tracker.conn.execute(
+        "DELETE FROM tasks WHERE task_date BETWEEN ? AND ? AND title IN ({})".format(
+            ",".join("?" for _ in OLD_PLAN_TITLES)
+        ),
+        [str(OLD_PLAN_START), str(OLD_PLAN_END)] + OLD_PLAN_TITLES,
+    )
+    tracker.conn.commit()
+    if cursor.rowcount:
+        print(f"[startup] removed {cursor.rowcount} old-plan tasks")
+
+# perform cleanup on import
+_cleanup_old_plan()
+QUANTS_DAYS = {0, 2, 4}  # Mon, Wed, Fri
+COMPUTER_DAYS = {1, 3, 4}  # Tue, Thu, Fri
+
+
+def add_weekday_plan_for_date(tracker_obj: TaskTracker, task_date: str) -> int:
+    """Add weekday-specific tasks for the given date."""
+    try:
+        d = datetime.strptime(task_date, "%Y-%m-%d").date()
+    except ValueError:
+        return 0
+    day_name = d.strftime("%A")
+    weekday_tasks: list[tuple[str, str]] = [
+        ("Maths Practice + Revision (4h)", "Daily maths practice and revision."),
+        ("Logical Reasoning (1h)", "Daily LR practice."),
+        ("Daily Maths Test", "Take maths test from today's studied topics."),
+        ("Revise Weekly Maths Topic", "Revise weekly maths topic every day (30-45 min)."),
+    ]
+    if d.weekday() in QUANTS_DAYS:
+        weekday_tasks.append(("Quants (2h)", "Quants session (3 days/week)."))
+    if d.weekday() in COMPUTER_DAYS:
+        weekday_tasks.append(("Computer (1h)", "Computer session (3 days/week)."))
+
+    created = 0
+    for title, details in weekday_tasks:
+        if not tracker_obj.task_exists(task_date, title):
+            tracker_obj.add_task(
+                title=title,
+                details=f"{details} | Date: {day_name}, {task_date}",
+                task_date=task_date,
+            )
+            created += 1
+    return created
+
+
+def add_weekend_plan_for_date(tracker_obj: TaskTracker, task_date: str) -> int:
+    """Add weekend mock-test tasks for the given date."""
+    weekend_tasks = [
+        ("Mock Test Only", "Saturday/Sunday rule: only mock test."),
+        (
+            "Record Mock Test Score",
+            "Enter Marks Obtained / Total Marks and percentage after mock test.",
+        ),
+    ]
+    created = 0
+    for title, details in weekend_tasks:
+        if not tracker_obj.task_exists(task_date, title):
+            tracker_obj.add_task(title=title, details=details, task_date=task_date)
+            created += 1
+    return created
+
 
 def normalize_date(raw: str) -> str:
     raw = (raw or "").strip()
@@ -353,8 +445,9 @@ PAGE = """
   <title>Daily Task Tracker</title>
   <style>
     :root {
-      --bg: #f6f7fb;
-      --card: #ffffff;
+      /* lighter, calming gradient background */
+      --bg: linear-gradient(135deg, #e0f7fa, #fffde7);
+      --card: rgba(255,255,255,0.85);
       --text: #111827;
       --muted: #6b7280;
       --accent: #0f766e;
@@ -363,9 +456,9 @@ PAGE = """
       --done: #166534;
       --pending: #92400e;
     }
-    body { margin: 0; font-family: Segoe UI, Arial, sans-serif; background: var(--bg); color: var(--text); }
+    body { margin: 0; font-family: Segoe UI, Arial, sans-serif; background: var(--bg); background-attachment: fixed; color: var(--text); }
     .wrap { max-width: 1000px; margin: 30px auto; padding: 0 14px; }
-    .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 16px; margin-bottom: 14px; }
+    .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 16px; margin-bottom: 14px; box-shadow: 0 2px 6px rgba(0,0,0,0.08); }
     h1, h2 { margin-top: 0; }
     form { display: grid; gap: 10px; }
     .row { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
@@ -443,15 +536,31 @@ PAGE = """
       <p class="exam-meta">Today: {{ today_date }} | Days left: {{ exam_days_left }}</p>
     </div>
 
+    <div class="card" style="text-align: center; font-style: italic; background: linear-gradient(135deg, #fff, #f0f8ff);">
+      <p>"I don't have to show anything to anyone. There is nothing to prove." – Cristiano Ronaldo</p>
+    </div>
+
     <div class="card">
       <h2>Add Task</h2>
       <form method="post" action="{{ url_for('add_task') }}">
         <div class="row">
           <input type="text" name="title" placeholder="Task title" required>
-          <input type="date" name="task_date" value="{{ selected_date }}" required>
+          <input type="date" name="task_date" value="{{ selected_date }}" min="2026-03-09" max="2026-06-06" required>
         </div>
         <textarea name="details" placeholder="Task details (optional)"></textarea>
         <button type="submit">Add Task</button>
+      </form>
+      <!-- custom plan buttons for the currently selected date -->
+      <form method="post" action="{{ url_for('load_weekday_plan') }}" style="margin-top:10px;">
+        <input type="hidden" name="task_date" value="{{ selected_date }}">
+        <button class="secondary" type="submit">Weekday Plan</button>
+      </form>
+      <form method="post" action="{{ url_for('load_weekend_plan') }}" style="margin-top:10px;">
+        <input type="hidden" name="task_date" value="{{ selected_date }}">
+        <button class="secondary" type="submit">Weekend Plan</button>
+      </form>
+      <form method="post" action="{{ url_for('clear_old_plan') }}" style="margin-top:10px;">
+        <button class="danger" type="submit">🗑️ Clear Old Plan Tasks</button>
       </form>
     </div>
 
@@ -459,7 +568,7 @@ PAGE = """
       <h2>Filter & Report</h2>
       <form method="get" action="{{ url_for('home') }}">
         <div class="row">
-          <input type="date" name="date" value="{{ selected_date }}">
+          <input type="date" name="date" value="{{ selected_date }}" min="2026-03-09" max="2026-06-06">
           <button type="submit">Load Date</button>
         </div>
       </form>
@@ -508,20 +617,6 @@ PAGE = """
               <div class="bar"><div class="bar-pending" style="width: {{ pending_pct }}%;"></div></div>
             </div>
           </div>
-        </div>
-      </div>
-      <div class="pill" style="margin-top:12px;">
-        <h3>Study Flow Chart</h3>
-        <div class="flow">
-          <div class="step">Morning Plan</div>
-          <div class="arrow">→</div>
-          <div class="step">Add Daily Tasks</div>
-          <div class="arrow">→</div>
-          <div class="step">Study / Practice</div>
-          <div class="arrow">→</div>
-          <div class="step">Mark Done / Pending</div>
-          <div class="arrow">→</div>
-          <div class="step">End-of-Day Report</div>
         </div>
       </div>
     </div>
@@ -611,7 +706,7 @@ EDIT_PAGE = """
     <h2>Edit Task #{{ task.id }}</h2>
     <form method="post" action="{{ url_for('edit_task_action', task_id=task.id) }}">
       <input type="text" name="title" value="{{ task.title }}" required>
-      <input type="date" name="task_date" value="{{ task.task_date }}" required>
+      <input type="date" name="task_date" value="{{ task.task_date }}" min="2026-03-09" max="2026-06-06" required>
       <textarea name="details">{{ task.details }}</textarea>
       <button type="submit">Save Changes</button>
     </form>
@@ -679,6 +774,38 @@ def add_task():
     else:
         msg = "Title is required."
     return redirect(url_for("home", date=task_date, msg=msg))
+
+
+@app.post("/tasks/weekday-plan")
+def load_weekday_plan():
+    task_date = normalize_date(request.form.get("task_date", ""))
+    created = add_weekday_plan_for_date(tracker, task_date)
+    msg = f"Weekday plan loaded. Added {created} tasks (duplicates skipped)."
+    return redirect(url_for("home", date=task_date, msg=msg))
+
+
+@app.post("/tasks/weekend-plan")
+def load_weekend_plan():
+    task_date = normalize_date(request.form.get("task_date", ""))
+    created = add_weekend_plan_for_date(tracker, task_date)
+    msg = f"Weekend plan loaded. Added {created} tasks (duplicates skipped)."
+    return redirect(url_for("home", date=task_date, msg=msg))
+
+
+@app.post("/tasks/clear-old")
+def clear_old_plan():
+    """Remove any leftover tasks from the former study plan range."""
+    # delete by date range and by known titles
+    cursor = tracker.conn.execute(
+        "DELETE FROM tasks WHERE task_date BETWEEN ? AND ? AND title IN ({})".format(
+            ",".join("?" for _ in OLD_PLAN_TITLES)
+        ),
+        [str(OLD_PLAN_START), str(OLD_PLAN_END)] + OLD_PLAN_TITLES,
+    )
+    tracker.conn.commit()
+    count = cursor.rowcount
+    msg = f"Removed {count} old-plan tasks." if count else "No old-plan tasks found."
+    return redirect(url_for("home", date=str(OLD_PLAN_START), msg=msg))
 
 
 @app.post("/tasks/<int:task_id>/done")
